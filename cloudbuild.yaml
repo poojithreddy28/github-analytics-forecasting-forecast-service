@@ -22,7 +22,7 @@ steps:
       [
         'run',
         'deploy',
-        'forecasting-service',
+        'forecast-service',
         '--image',
         'gcr.io/github-analytics-forecasting/forecast-service:$COMMIT_SHA',
         '--region',
