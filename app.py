@@ -4,7 +4,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def root():
-    return jsonify(message="📈 Forecasting service is up and running!")
+    return jsonify(message="📈 Forecasting service for github repos")
 
 @app.route('/forecast/issues')
 def forecast_issues():
