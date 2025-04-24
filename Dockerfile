@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Set default port for Cloud Run
-EXPOSE 8080
+EXPOSE 8081
 
 # Run the app
 CMD ["python", "app.py"]
