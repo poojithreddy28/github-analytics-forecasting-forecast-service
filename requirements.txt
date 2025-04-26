@@ -1,10 +1,12 @@
 flask
 pandas
 numpy
-matplotlib 
+matplotlib
 scikit-learn
 scipy
 tensorflow
 keras
 google-cloud-storage
 flask-cors
+prophet
+statsmodels

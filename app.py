@@ -13,7 +13,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-
+from prophet import Prophet
 from flask_cors import CORS
 
 # Tensorflow (Keras & LSTM) related packages
@@ -25,7 +25,7 @@ from sklearn.preprocessing import MinMaxScaler
 
 # Import required storage package from Google Cloud Storage
 from google.cloud import storage
-
+from statsmodels.tsa.statespace.sarimax import SARIMAX
 # Init flask app
 app = Flask(__name__)
 CORS(app)
@@ -162,11 +162,96 @@ def forecast():
     ax.set_title('All Issues Data'); ax.set_xlabel('Date'); ax.set_ylabel('Count')
     fig.savefig(LOCAL_IMAGE_PATH + all_img)
     plt.close(fig)
+    # ----------------------------------------------------------------
+    # Facebook Prophet Forecast
+    prophet_img = f"prophet_forecast_{series_col}_{repo_name}.png"
+    prophet_url = BASE_IMAGE_PATH + prophet_img
+
+    prophet_model = Prophet()
+    prophet_model.fit(df)
+    future = prophet_model.make_future_dataframe(periods=30)
+    forecast = prophet_model.predict(future)
+
+    # Get cutoff to separate history vs forecast
+    cutoff_date = df['ds'].max()
+
+    # Custom styled forecast plot
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    # Plot only historical part
+    ax.plot(df['ds'], df['y'], 'bo-', label='Historical Data')
+
+    # Plot only forecast part (starting after history ends)
+    future_forecast = forecast[forecast['ds'] > cutoff_date]
+    ax.plot(future_forecast['ds'], future_forecast['yhat'], 'orange', linestyle='--', label='Forecasted Data')
+    ax.fill_between(future_forecast['ds'],
+                    future_forecast['yhat_lower'],
+                    future_forecast['yhat_upper'],
+                    color='orange', alpha=0.3)
+
+    # Dynamic title & labels
+    pretty_label = "Created Issues" if "created" in series_col.lower() else "Closed Issues"
+    ax.set_title(f"Forecast of {pretty_label} — {repo_name}", fontsize=14)
+    ax.set_xlabel("Date")
+    ax.set_ylabel(f"Number of {pretty_label}")
+    ax.legend()
+
+    fig.savefig(LOCAL_IMAGE_PATH + prophet_img)
+    plt.close(fig)
+    # ----------------------------------------------------------------
+    # Statsmodels SARIMAX Forecast
+    sarimax_img = f"sarimax_forecast_{series_col}_{repo_name}.png"
+    sarimax_url = BASE_IMAGE_PATH + sarimax_img
+
+    # Step 1: Reindex to daily frequency and fill gaps
+    df_sarimax = df.set_index('ds').resample('D').sum().fillna(0)
+
+    # Step 2: Fit SARIMAX model
+    model = SARIMAX(
+        df_sarimax['y'],
+        order=(1, 1, 1),
+        seasonal_order=(1, 1, 1, 7),
+        enforce_stationarity=False,
+        enforce_invertibility=False
+    )
+    results = model.fit(disp=False)
+
+    # Step 3: Forecast 30 future steps
+    forecast_result = results.get_forecast(steps=30)
+    forecast_mean = forecast_result.predicted_mean
+    forecast_ci = forecast_result.conf_int()
+    forecast_index = forecast_mean.index  # Dates auto-handled by model
+
+    # Step 4: Plot everything
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    # Historical
+    ax.plot(df_sarimax.index, df_sarimax['y'], 'bo-', label='Historical Data')
+
+    # Forecasted
+    ax.plot(forecast_index, forecast_mean, 'orange', linestyle='--', label='Forecasted Data')
+
+    # Confidence interval shading
+    ax.fill_between(forecast_index,
+                    forecast_ci.iloc[:, 0],
+                    forecast_ci.iloc[:, 1],
+                    color='orange', alpha=0.3)
+
+    # Labels and title
+    pretty_label = "Created Issues" if "created" in series_col.lower() else "Closed Issues"
+    ax.set_title(f"STATSmodels SARIMAX Forecast of {pretty_label} — {repo_name}", fontsize=14)
+    ax.set_xlabel("Date")
+    ax.set_ylabel(f"Number of {pretty_label}")
+    ax.legend()
+
+    # Save
+    fig.savefig(LOCAL_IMAGE_PATH + sarimax_img)
+    plt.close(fig)
 
     # ----------------------------------------------------------------
-    # upload to GCS
+    # upload all images to GCS
     bucket = client.get_bucket(BUCKET_NAME)
-    for img in (loss_img, lstm_img, all_img):
+    for img in (loss_img, lstm_img, all_img, prophet_img, sarimax_img):
         blob = bucket.blob(img)
         blob.upload_from_filename(f"{LOCAL_IMAGE_PATH}{img}")
 
@@ -174,7 +259,9 @@ def forecast():
     return jsonify({
         "model_loss_image_url": loss_url,
         "lstm_generated_image_url": lstm_url,
-        "all_issues_data_image": all_url
+        "all_issues_data_image": all_url,
+        "prophet_forecast_image_url": prophet_url,
+         "sarimax_forecast_image_url": sarimax_url
     })
 
 

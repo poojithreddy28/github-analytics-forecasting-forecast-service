@@ -1,0 +1,10 @@
+# Ignore environment and secret files
+*.json
+*.key
+*.p12
+
+# Ignore virtual environment
+.venv/
+
+# Ignore Mac OS system files
+.DS_Store
