@@ -8,5 +8,6 @@ tensorflow
 keras
 google-cloud-storage
 flask-cors
-prophet
+prophet>=1.1
+cmdstanpy>=1.1.0
 statsmodels
